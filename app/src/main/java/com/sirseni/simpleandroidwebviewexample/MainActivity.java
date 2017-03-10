@@ -5,8 +5,12 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
+
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.os.Handler;
 import android.os.RemoteException;
 import android.telephony.TelephonyManager;
 import android.util.Log;
@@ -35,6 +39,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Timer;
@@ -44,6 +50,21 @@ public class MainActivity extends Activity implements BeaconConsumer {
 
     protected static final String TAG = "RangingActivity";
     private BeaconManager beaconManager;
+    HashMap beaconSums = new HashMap<String, Integer>();
+    int beaconSent=0;
+
+    NsdManager mNsdManager;
+    NsdManager.ResolveListener mResolveListener;
+    NsdManager.DiscoveryListener mDiscoveryListener;
+    NsdManager.RegistrationListener mRegistrationListener;
+    public static final String SERVICE_TYPE = "_workstation._tcp.";
+    public String mServiceName = "SmarterHome";
+
+    NsdServiceInfo mService;
+    private Handler mUpdateHandler;
+
+
+    String SmarterHomeIP;
 
     String phone;
 
@@ -61,6 +82,10 @@ public class MainActivity extends Activity implements BeaconConsumer {
     @SuppressLint("HardwareIds")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        mNsdManager = (NsdManager) this.getSystemService(Context.NSD_SERVICE);
+        initializeDiscoveryListener();
+        initializeResolveListener();
+        discoverServices();
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -91,7 +116,7 @@ public class MainActivity extends Activity implements BeaconConsumer {
 
         Timer myTimer = new Timer();
         //Start this timer when you create you task
-        myWebView.loadUrl("http://192.168.1.120");
+        myWebView.loadUrl(SmarterHomeIP);
         myWebView.setWebViewClient(new MyWebViewClient());
         WebSettings webSettings = myWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
@@ -133,12 +158,15 @@ public class MainActivity extends Activity implements BeaconConsumer {
                 if (beacons.size() > 0) {
                     Log.i(TAG, "The first beacon I see is about "+beacons.iterator().next().getDistance()+" meters away.");
                     Log.i(TAG, "RSSI: "+beacons.iterator().next().getRssi());
-                        final String URL = "http://192.168.1.120/php/notify.php";
+                        final String URL = SmarterHomeIP+"/php/notify.php";
                         // Post params to be sent to the server
                     try {
                         JSONArray jsonArr = new JSONArray();
+                        JSONArray beaconIdArray = new JSONArray();
+
                         for (Beacon beacon : beacons) {
                             JSONObject JSONbeacons = new JSONObject();
+                            beaconIdArray.put(Integer.parseInt(beacon.getId2().toString().substring(2), 16));
                             JSONbeacons.put("beaconID", Integer.parseInt(beacon.getId2().toString().substring(2), 16));
                             JSONbeacons.put("rssi", beacon.getRssi());
                             jsonArr.put(JSONbeacons);
@@ -147,9 +175,6 @@ public class MainActivity extends Activity implements BeaconConsumer {
 
                         rangesJSON.put("beacons", jsonArr);
                         String ranges = rangesJSON.toString();
-                        Log.i(TAG, ranges);
-
-
                         Log.i(TAG, ranges);
                         JSONObject jsonSend = new JSONObject();
                         jsonSend.put("phoneNumber",phone);
@@ -177,10 +202,13 @@ public class MainActivity extends Activity implements BeaconConsumer {
                     } catch(JSONException ex) {
                         ex.printStackTrace();
                     }
+                } else{
+                    Log.i(TAG, "No beacons visible!!!!!!!!!!!!!!!!!!!!");
+                    Log.i(TAG, beacons.toString());
+                    Log.i(TAG, region.toString());
                 }
             }
         });
-
         try {
             beaconManager.startRangingBeaconsInRegion(new Region("myRangingUniqueId", null, null, null));
         } catch (RemoteException e) {    }
@@ -223,12 +251,91 @@ public class MainActivity extends Activity implements BeaconConsumer {
         client.disconnect();
     }
 
+    public void discoverServices() {
+        mNsdManager.discoverServices(
+                SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, mDiscoveryListener);
+    }
+
+    public void initializeDiscoveryListener() {
+
+        // Instantiate a new DiscoveryListener
+        mDiscoveryListener = new NsdManager.DiscoveryListener() {
+
+            //  Called as soon as service discovery begins.
+            @Override
+            public void onDiscoveryStarted(String regType) {
+                Log.d("NSDMANAGER", "Service discovery started");
+            }
+
+            @Override
+            public void onServiceFound(NsdServiceInfo service) {
+                // A service was found!  Do something with it.
+                Log.d("NSDMANAGER", "Service discovery success" + service);
+                if (service.getServiceName().contains("SmarterHome")){
+                    mNsdManager.resolveService(service, mResolveListener);
+                    Log.d("NSDMANAGER", "Smarter Home Found!: " + service);
+                }
+            }
+
+            @Override
+            public void onServiceLost(NsdServiceInfo service) {
+                // When the network service is no longer available.
+                // Internal bookkeeping code goes here.
+                Log.e("NSDMANAGER", "service lost" + service);
+            }
+
+            @Override
+            public void onDiscoveryStopped(String serviceType) {
+                Log.i("NSDMANAGER", "Discovery stopped: " + serviceType);
+            }
+
+            @Override
+            public void onStartDiscoveryFailed(String serviceType, int errorCode) {
+                Log.e("NSDMANAGER", "Discovery failed: Error code:" + errorCode);
+                mNsdManager.stopServiceDiscovery(this);
+            }
+
+            @Override
+            public void onStopDiscoveryFailed(String serviceType, int errorCode) {
+                Log.e("NSDMANAGER", "Discovery failed: Error code:" + errorCode);
+                mNsdManager.stopServiceDiscovery(this);
+            }
+        };
+    }
+
+    public void initializeResolveListener() {
+        mResolveListener = new NsdManager.ResolveListener() {
+
+            @Override
+            public void onResolveFailed(NsdServiceInfo serviceInfo, int errorCode) {
+                Log.e("NSDMANAGER", "Resolve failed" + errorCode);
+            }
+
+            @Override
+            public void onServiceResolved(NsdServiceInfo serviceInfo) {
+                Log.e("NSDMANAGER", "Resolve Succeeded. " + serviceInfo);
+
+                if (serviceInfo.getServiceName().contains("SmarterHome")) {
+                    Log.d("NSDMANAGER", "Same IP.");
+
+                    InetAddress rPi = serviceInfo.getHost();
+                    SmarterHomeIP = "http://"+rPi.getHostName();
+                    Log.d("NSDMANAGER",SmarterHomeIP);
+                    return;
+                }
+                mService = serviceInfo;
+                int port = mService.getPort();
+                InetAddress host = mService.getHost();
+                Log.d("NSDMANAGER",host.toString());
+            }
+        };
+    }
 
     // Use When the user clicks a link from a web page in your WebView
     private class MyWebViewClient extends WebViewClient {
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            if (Uri.parse(url).getHost().equals("192.168.1.120")) {
+            if (Uri.parse(url).getHost().equals(SmarterHomeIP)) {
                 return false;
 
             }
