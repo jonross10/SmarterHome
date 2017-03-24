@@ -14,6 +14,8 @@ import android.os.Handler;
 import android.os.RemoteException;
 import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -121,6 +123,8 @@ public class MainActivity extends Activity implements BeaconConsumer {
         WebSettings webSettings = myWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
+        webSettings.setAllowUniversalAccessFromFileURLs(true);
+        webSettings.setAllowFileAccessFromFileURLs(true);
         webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         myWebView.setWebChromeClient(new WebChromeClient());
         myWebView.setWebViewClient(new WebViewClient() {
@@ -144,6 +148,10 @@ public class MainActivity extends Activity implements BeaconConsumer {
         client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
     }
 
+    boolean calibrationMode=false;
+    int calibratingBeacon;
+    String rssiList = "'[";
+    int calibrationCounter=0;
 
     @Override
     protected void onDestroy() {
@@ -151,6 +159,7 @@ public class MainActivity extends Activity implements BeaconConsumer {
         beaconManager.unbind(this);
     }
     @Override
+    @JavascriptInterface
     public void onBeaconServiceConnect() {
         beaconManager.addRangeNotifier(new RangeNotifier() {
             @Override
@@ -162,15 +171,51 @@ public class MainActivity extends Activity implements BeaconConsumer {
                         // Post params to be sent to the server
                     try {
                         JSONArray jsonArr = new JSONArray();
-                        JSONArray beaconIdArray = new JSONArray();
+                        String beaconIdArray = "'[";
 
                         for (Beacon beacon : beacons) {
                             JSONObject JSONbeacons = new JSONObject();
-                            beaconIdArray.put(Integer.parseInt(beacon.getId2().toString().substring(2), 16));
+                            beaconIdArray+=Integer.parseInt(beacon.getId2().toString().substring(2), 16)+",";
                             JSONbeacons.put("beaconID", Integer.parseInt(beacon.getId2().toString().substring(2), 16));
                             JSONbeacons.put("rssi", beacon.getRssi());
                             jsonArr.put(JSONbeacons);
+                            if(calibrationMode && calibratingBeacon==Integer.parseInt(beacon.getId2().toString().substring(2), 16)){
+                                rssiList+=beacon.getRssi()+",";
+                                calibrationCounter++;
+                            }
                         }
+                        final String beaconArrayToSend = beaconIdArray.substring(0,beaconIdArray.length()-1)+"]'";
+                        Log.i("SENDINGBEACONIDTOPHONE",beaconArrayToSend);
+                        final WebView myWebView = (WebView) findViewById(R.id.myWebView);
+                        myWebView.post( new Runnable(){
+                            @SuppressLint("JavascriptInterface")
+                            @Override
+                            public void run(){
+                                myWebView.loadUrl("javascript: localStorage.setItem(\"beaconList\", " + beaconArrayToSend + ");");
+                                myWebView.evaluateJavascript(
+                                        "(function() { return localStorage.getItem(\"calibration\"); })();",
+                                        new ValueCallback<String>() {
+                                            @Override
+                                            public void onReceiveValue(String html) {
+                                                Log.d("HTML", html);
+                                                if(html.contains("true")){
+                                                    calibrationMode=true;
+                                                    Log.d("HTML",html.split("-")[1].substring(0,html.split("-")[1].length()-1));
+                                                    calibratingBeacon=Integer.parseInt(html.split("-")[1].substring(0,html.split("-")[1].length()-1));
+                                                    if(calibrationCounter>10){
+                                                        final String rssiVals = rssiList.substring(0,rssiList.length()-1)+"]'";
+                                                        calibrationCounter=0;
+                                                        myWebView.loadUrl("javascript: localStorage.setItem(\"calibration\", \"false\");");
+                                                        calibrationMode=false;
+                                                        calibratingBeacon=-1;
+                                                        myWebView.loadUrl("javascript: localStorage.setItem(\"rssiVals\","+rssiVals+");");
+                                                    }
+                                                }
+                                            }
+                                        });
+
+                            }
+                        });
                         JSONObject rangesJSON = new JSONObject();
 
                         rangesJSON.put("beacons", jsonArr);
