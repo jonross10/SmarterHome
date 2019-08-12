@@ -1,8 +1,7 @@
-# Simple Android WebView Example
-A common scenario in which using WebView is helpful is when you want to provide information in your application that you might need to update, such as an end-user agreement or a user guide. Within your Android application, you can create an Activity that contains a WebView, then use that to display your document that's hosted online.
+# Smarter Home
+## Problem Statement
+	Houses are getting smarter and smarter with the plethora of smart devices on the market today. Many people utilize multiple smart devices in different areas of their homes, and many homes are inhabited by multiple people. Smart devices make life easier, you can control them very simply with your smartphone, but that requires taking your smartphone out of your pocket, opening up the specific app for whichever smart device you want to control, and then giving a certain command to that smart device (turn on the lights, turn on the ac, unlock the door, etc). This can become a very annoying and time consuming action if you have many different smart devices in your home. 
 
-Tutorial: http://www.viralandroid.com/2015/08/simple-android-webview-example.html
+	Our project goal is to automate the process of sending user specific commands to the smart devices within the home. Using BLE Beacons, we aim to determine when a specific user enters a room and trigger smart actions based off of what that user has previously determined should occur when they walk into that room (i.e. turn on the lights to a certain dim  setting, turn the ac down to a certain temperature, or transfer the music they were listening to in one room to the room they just entered). This will save our users time, instead of pulling out their smartphone and finding the correct smart home app for the device they wish to control, the actions that they want to happen will occur once they walk into the room.
 
-<h2>Screenshot:</h2>
-![Alt text](https://lh3.googleusercontent.com/5iXN0yivhjsYzzSDWiB81ii5YI86xGq7rUFZ3KhycQ=w800-h480-no "Optional title")
 
