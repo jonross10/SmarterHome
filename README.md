@@ -1,4 +1,6 @@
 # Smarter Home
+An Android Webview application that aims to automate smart devices based off of a user's location within the home. BLE beacons will be placed in rooms for the purpose of tracking a user's movement through the home. [Link to full report](https://drive.google.com/file/d/0B4SomDbgheKqWWJNZVVpLXY4eGM/view?usp=sharing).
+
 ## Problem Statement
   Houses are getting smarter and smarter with the plethora of smart devices on the market today. Many people utilize multiple smart devices in different areas of their homes, and many homes are inhabited by multiple people. Smart devices make life easier, you can control them very simply with your smartphone, but that requires taking your smartphone out of your pocket, opening up the specific app for whichever smart device you want to control, and then giving a certain command to that smart device (turn on the lights, turn on the ac, unlock the door, etc). This can become a very annoying and time consuming action if you have many different smart devices in your home. 
 
